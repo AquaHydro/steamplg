@@ -2,8 +2,5 @@
   "name": "steamplg",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
-  // site/ 里的静态页面（主页 / 下载 / 隐私政策）优先由 assets 直接返回，其余请求（/lowest）才进 worker.js
-  "assets": { "directory": "site", "html_handling": "auto-trailing-slash" },
-  "workers_dev": true, // 保留 steamplg.<子域>.workers.dev，已配置的客户端继续可用
-  "routes": [{ "pattern": "steamplg.yiliang.app", "custom_domain": true }]
+  "workers_dev": true
 }

@@ -79,16 +79,11 @@ xcrun notarytool store-credentials steamplg --apple-id <你的 Apple ID> --team-
 
 调试端口只监听本机，但开着时，本机任何程序都能控制 Steam 的网页界面。不用的时候，正常重启 Steam（不带参数）即可关闭。
 
-项目主页：https://steamplg.yiliang.app 。价格数据来自 [IsThereAnyDeal](https://isthereanydeal.com)。
+价格数据来自 [IsThereAnyDeal](https://isthereanydeal.com)。
 
-## Code signing policy
+## 签名与隐私
 
-Windows releases: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-macOS releases are signed with the maintainer's Apple Developer ID and notarized by Apple.
-
-Team roles:
-- Committers and reviewers: [AquaHydro](https://github.com/AquaHydro)
-- Approvers: [AquaHydro](https://github.com/AquaHydro)
+macOS 版用作者的 Apple Developer ID 签名，并经过 Apple 公证。Windows 版目前没有签名，运行时如果出现 SmartScreen 警告，点「仍要运行」即可。
 
 Privacy policy: this program will not transfer any information to other networked systems other than those described here. For each Steam store page you open, it sends the game's Steam app ID and your configured country code either to the [IsThereAnyDeal API](https://docs.isthereanydeal.com/) (with your own API key) or to the Cloudflare Worker you deploy yourself. It only talks to the Steam client through its local debugging port (127.0.0.1).
 
