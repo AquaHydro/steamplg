@@ -7,8 +7,9 @@ export function classify(history) {
   const cur = h[0]?.deal;
   if (!cur || cur.price.amount === 0) return null; // 没数据 / 免费游戏
   // 只比同币种的打折记录：ITAD 偶有原价抓错的脏记录（如国区星露谷 ¥14.99、cut 0）
+  // 限免（¥0、cut 100）不算史低，否则领过一次的游戏永远显示「史低 0」（如国区 46500 在 2021-09）
   // ponytail: 原价永久下调到低于以往折扣价时会漏判，真遇到再处理
-  const prev = h.slice(1).filter((e) => e.deal.cut > 0 && e.deal.price.currency === cur.price.currency);
+  const prev = h.slice(1).filter((e) => e.deal.cut > 0 && e.deal.price.amount > 0 && e.deal.price.currency === cur.price.currency);
   if (!prev.length) return cur.cut > 0 ? { text: '新史低', color: '#c00' } : null;
   const prevMin = Math.min(...prev.map((e) => e.deal.price.amount));
   if (cur.cut === 0) return { text: `未打折 · 史低 ${prevMin}`, color: '#666' };
