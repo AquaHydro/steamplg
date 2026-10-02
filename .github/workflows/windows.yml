@@ -1,0 +1,61 @@
+# 发布 Release 后，在 GitHub 托管的 Windows 机器上构建 exe（带产品名/版本元数据），
+# 配好 SignPath 后自动提交签名，最后把 exe 传到这个 Release（覆盖本地上传的版本）。
+# SignPath 要求：整个流程都在 GitHub 托管的 runner 上跑，每次签名在 SignPath 里人工批准。
+name: windows
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: build
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}.0" # v0.1.0 -> 0.1.0.0（Windows 版本号要 4 段）
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          bun build steamplg.js --compile --minify --target=bun-windows-x64 \
+            --windows-title=steamplg --windows-version="$V" \
+            --windows-description="Steam 商店史低标记" --windows-publisher=AquaHydro \
+            --outfile dist/steamplg-windows-x64.exe
+
+      - name: upload unsigned artifact
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: steamplg-windows-unsigned
+          path: dist/steamplg-windows-x64.exe
+
+      # 在仓库 Settings → Secrets and variables → Actions 里配置
+      # secret SIGNPATH_API_TOKEN 和 variable SIGNPATH_ORGANIZATION_ID 后才会签名
+      - name: sign
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: steamplg
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+          parameters: |
+            version: ${{ toJSON(env.VERSION) }}
+
+      - name: upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=dist/steamplg-windows-x64.exe
+          [ -f signed/steamplg-windows-x64.exe ] && f=signed/steamplg-windows-x64.exe
+          gh release upload "$GITHUB_REF_NAME" "$f" --clobber

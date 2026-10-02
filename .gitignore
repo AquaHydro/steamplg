@@ -1,0 +1,4 @@
+config.json
+.wrangler/
+dist/
+.DS_Store
