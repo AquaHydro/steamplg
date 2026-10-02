@@ -21,34 +21,47 @@ Steam 客户端的商店页是内置 Chromium（CEF）渲染的。用 `-cef-enab
    - macOS：`open -a Steam --args -cef-enable-debugging`
    - Windows：`"C:\Program Files (x86)\Steam\steam.exe" -cef-enable-debugging`
    - Linux：`steam -cef-enable-debugging`
-3. 运行程序：Windows 双击 exe 即可；macOS / Linux 在终端里运行 `./steamplg-…`。第一次运行时，输入以下两者之一：
-   - **ITAD API Key**：在 https://isthereanydeal.com/apps/my/ 注册一个应用即可免费获得。
-   - **Cloudflare Worker 地址 + TOKEN**：见下文。填这一项的话，本机不需要 Key。
+3. 运行程序：Windows 双击 exe 即可；macOS / Linux 在终端里运行 `./steamplg-…`。不需要申请任何 Key，价格数据由作者部署的服务器提供。程序需要一直开着。
 
-   输入的内容会保存到用户目录下的 `.steamplg.json`，以后启动不会再问。程序需要一直开着。
+   第一次运行时会在用户目录下生成 `.steamplg.json`，并问要不要设为**登录后自动在后台运行**，选 `y` 就不用每次手动开了，也不会占着一个终端窗口。以后也可以随时设置或取消：
+
+   ```bash
+   ./steamplg-… install     # 设为后台自启（Windows：steamplg-windows-x64.exe install）
+   ./steamplg-… uninstall   # 取消自启并停止后台进程
+   ```
+
+   | 系统 | 实现方式 | 日志 |
+   |---|---|---|
+   | macOS | `~/Library/LaunchAgents/app.steamplg.plist`（launchd，崩溃后自动重启） | `~/.steamplg.log` |
+   | Windows | 「启动」文件夹里的 `steamplg.vbs`（隐藏窗口运行） | `%USERPROFILE%\.steamplg.log` |
+   | Linux | `~/.config/systemd/user/steamplg.service` | `journalctl --user -u steamplg -f` |
+
+   自启配置里记录的是程序当前所在的路径。设置之后如果移动了程序文件，需要重新执行一次 `install`。
 
 **macOS / Linux 首次运行**：浏览器下载的文件没有可执行权限，先执行一次 `chmod +x steamplg-*`。Mac 版已经过 Apple 签名和公证，第一次运行时需要联网，让系统向 Apple 确认。
 
-## 用 Cloudflare 托管 Key（可选）
+## 自己部署服务器（可选）
 
-如果你有多台电脑，或者想把工具分享给朋友但不想交出 Key，可以把 Key 存到 Cloudflare Worker 的 Secret 里。免费额度是每天 10 万次请求。
+默认的价格服务器是作者用 Cloudflare Worker（[worker.js](worker.js)）部署的，它持有 ITAD Key，所有用户共用。如果不想依赖它，可以部署一份自己的，免费额度是每天 10 万次请求：
 
 ```bash
 npx wrangler login
 npx wrangler deploy                # 部署后会得到 https://steamplg.<你的子域>.workers.dev
-npx wrangler secret put ITAD_KEY   # 粘贴 ITAD Key
-npx wrangler secret put TOKEN      # 自己随便定一个较长的口令
+npx wrangler secret put ITAD_KEY   # 粘贴 ITAD Key（https://isthereanydeal.com/apps/my/ 免费申请）
+npx wrangler secret put TOKEN      # 可选：设了就只有带这个口令的客户端能用
 ```
 
-各客户端第一次运行时，输入 Worker 地址和 TOKEN 即可。没有 TOKEN 的请求一律返回 403。
+然后在 `.steamplg.json` 里填上 `server`（和 `token`）。也可以不要服务器，直接填 `key` 让本机直连 ITAD。
+
+注意：`*.workers.dev` 域名在国内经常连不上，而且 Worker 的缓存只在自定义域名上生效，建议给 Worker 绑一个自己的域名。
 
 ## .steamplg.json 字段
 
 | 字段 | 默认值 | 说明 |
 |---|---|---|
-| `key` | | ITAD API Key（直连 ITAD 时用） |
-| `server` | | Worker 地址（填了就不直连 ITAD） |
-| `token` | | Worker 的 TOKEN |
+| `server` | 作者的服务器 | 价格服务器地址 |
+| `token` | | 服务器的 TOKEN（自建并设了 TOKEN 时填） |
+| `key` | | ITAD API Key，填了且没填 `server` 时本机直连 ITAD |
 | `country` | `CN` | 价格所在区，要和你的 Steam 商店区一致 |
 | `debugPort` | `8080` | Steam 的调试端口 |
 
@@ -75,6 +88,14 @@ xcrun notarytool store-credentials steamplg --apple-id <你的 Apple ID> --team-
 
 运行后它会要你输入 App 专用密码，在 https://account.apple.com 的「登录与安全」里生成。
 
+### Microsoft Store
+
+GitHub 上发布 Release 后，`.github/workflows/windows.yml` 会额外打出 `steamplg-<版本>.msix` 并传到 Release。把它下载下来，在 Partner Center 里提交到商店，审核通过后由微软签名，不需要自己的证书。也可以在 Actions 页手动运行这个 workflow 试打包，产物在 artifact 里。
+
+- 包清单在 [msix/AppxManifest.xml](msix/AppxManifest.xml)，图标在 `msix/Assets/`。
+- 商店版的登录自启由清单里的 startupTask 实现，默认关闭，用户在「设置 → 应用 → 启动」里打开。`install` / `uninstall` 在商店版里会直接打开这个设置页。
+- 每次提交的版本号必须比上一次大，由 Release 的 tag 决定（`v0.2.0` → `0.2.0.0`）。
+
 ## 注意
 
 调试端口只监听本机，但开着时，本机任何程序都能控制 Steam 的网页界面。不用的时候，正常重启 Steam（不带参数）即可关闭。
@@ -83,9 +104,9 @@ xcrun notarytool store-credentials steamplg --apple-id <你的 Apple ID> --team-
 
 ## 签名与隐私
 
-macOS 版用作者的 Apple Developer ID 签名，并经过 Apple 公证。Windows 版目前没有签名，运行时如果出现 SmartScreen 警告，点「仍要运行」即可。
+macOS 版用作者的 Apple Developer ID 签名，并经过 Apple 公证。Windows 版：从 Microsoft Store 安装的版本由微软签名；GitHub 上的 exe 没有签名，运行时如果出现 SmartScreen 警告，点「仍要运行」即可。
 
-Privacy policy: this program will not transfer any information to other networked systems other than those described here. For each Steam store page you open, it sends the game's Steam app ID and your configured country code either to the [IsThereAnyDeal API](https://docs.isthereanydeal.com/) (with your own API key) or to the Cloudflare Worker you deploy yourself. It only talks to the Steam client through its local debugging port (127.0.0.1).
+Privacy policy: this program will not transfer any information to other networked systems other than those described here. For each Steam store page you open, it sends the game's Steam app ID and your configured country code to the maintainer's price server (a Cloudflare Worker, which forwards the query to the [IsThereAnyDeal API](https://docs.isthereanydeal.com/)), or to the server / ITAD key you configure yourself. The price server keeps no logs of its own; like any website on Cloudflare, Cloudflare processes your IP address to deliver the request and apply rate limits. It only talks to the Steam client through its local debugging port (127.0.0.1).
 
 ## License
 

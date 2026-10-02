@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Store 用的 MSIX 包清单。CI（.github/workflows/windows.yml）把 Version 换成 Release 版本号后用 makeappx 打包，
+     上传到 Partner Center 后由微软签名，所以这里不需要证书。
+     Identity 的 Name / Publisher 和 PublisherDisplayName 必须和 Partner Center「产品标识」页上的完全一致。 -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap5 uap10 rescap">
+
+  <Identity Name="LiaoYiliang.steamplg" Publisher="CN=B1F5ED25-09ED-4D20-8409-223CC7711276" Version="0.0.0.0" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>steamplg</DisplayName>
+    <PublisherDisplayName>Liao Yiliang</PublisherDisplayName>
+    <Logo>Assets\logo50.png</Logo>
+    <Description>在 Steam 客户端商店页标出新史低 / 平史低</Description>
+  </Properties>
+
+  <!-- 19041 = Windows 10 2004，uap10:Parameters 的最低要求 -->
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="zh-CN" />
+  </Resources>
+
+  <Applications>
+    <Application Id="steamplg" Executable="steamplg.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="steamplg" Description="Steam 商店史低标记"
+        BackgroundColor="transparent" Square150x150Logo="Assets\logo150.png" Square44x44Logo="Assets\logo44.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\wide310x150.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- 登录自启：默认关闭，用户在「设置 → 应用 → 启动」里打开。带 background 参数时程序会转成无窗口的后台进程 -->
+        <uap5:Extension Category="windows.startupTask" Executable="steamplg.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--background">
+          <uap5:StartupTask TaskId="steamplg" Enabled="false" DisplayName="steamplg" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

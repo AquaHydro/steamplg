@@ -2,5 +2,9 @@
   "name": "steamplg",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
-  "workers_dev": true
+  "workers_dev": true, // 保留 steamplg.<子域>.workers.dev，已配置的客户端继续可用
+  // 客户端内置的地址（DEFAULT_SERVER）。国内连 workers.dev 不稳，Cache API 也只在自定义域名上生效
+  "routes": [{ "pattern": "steamplg.yiliang.app", "custom_domain": true }],
+  // 每个 IP 每分钟 60 次。客户端对每个游戏本地缓存 1 小时，正常使用远到不了
+  "ratelimits": [{ "name": "LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }]
 }

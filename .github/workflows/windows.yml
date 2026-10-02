@@ -1,9 +1,11 @@
 # 发布 Release 后，在 GitHub 托管的 Windows 机器上构建 exe（带产品名/版本元数据），
 # 再传到这个 Release（覆盖本地交叉编译、元数据是 Bun 默认值的版本）。
+# 同时打一个给 Microsoft Store 的 .msix（不签名，上传 Partner Center 后由微软签名）。
 name: windows
 on:
   release:
     types: [published]
+  workflow_dispatch: # 手动试跑：产物传到 Actions 的 artifact，不碰 Release
 
 permissions:
   contents: write
@@ -20,15 +22,36 @@ jobs:
       - name: build
         shell: bash
         run: |
-          V="${GITHUB_REF_NAME#v}.0" # v0.1.0 -> 0.1.0.0（Windows 版本号要 4 段）
+          V="${GITHUB_REF_NAME#v}.0"; [ "$GITHUB_EVENT_NAME" = release ] || V=0.0.1.0 # v0.1.0 -> 0.1.0.0（Windows 版本号要 4 段；Store 要求第 4 段为 0）
+          echo "VERSION=$V" >> "$GITHUB_ENV"
           bun build steamplg.js --compile --minify --target=bun-windows-x64 \
             --windows-title=steamplg --windows-version="$V" \
             --windows-description="Steam 商店史低标记" --windows-publisher=AquaHydro \
             --outfile dist/steamplg-windows-x64.exe
 
+      - name: msix
+        shell: pwsh
+        run: |
+          if (Select-String -Path msix/AppxManifest.xml -Pattern 'TODO' -Quiet) { throw 'msix/AppxManifest.xml 里的 Identity 还没填' }
+          New-Item -ItemType Directory pkg | Out-Null
+          Copy-Item -Recurse msix/* pkg/
+          Copy-Item dist/steamplg-windows-x64.exe pkg/steamplg.exe
+          (Get-Content -Raw pkg/AppxManifest.xml).Replace('Version="0.0.0.0"', "Version=""$env:VERSION""") | Set-Content -Encoding utf8 pkg/AppxManifest.xml
+          $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $makeappx.FullName pack /o /d pkg /p "dist/steamplg-$env:VERSION.msix"
+          if ($LASTEXITCODE) { throw "makeappx 失败：$LASTEXITCODE" }
+
+      - name: upload artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/
+
       - name: upload to release
+        if: github.event_name == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" dist/steamplg-windows-x64.exe --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/steamplg-windows-x64.exe dist/steamplg-*.msix --clobber
