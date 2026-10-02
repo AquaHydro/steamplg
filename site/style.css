@@ -1,0 +1,13 @@
+body { margin: 0; font: 16px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #1b2838; background: #f4f6f8; }
+main { max-width: 760px; margin: 0 auto; padding: 40px 20px; }
+h1 { margin-bottom: 0; }
+h2 { margin-top: 2em; }
+.tagline { font-size: 1.15em; }
+img { max-width: 100%; border-radius: 6px; }
+a { color: #1a6fb5; }
+code { background: #e6e9ed; padding: 1px 5px; border-radius: 3px; }
+table { border-collapse: collapse; }
+td { padding: 4px 16px 4px 0; }
+.badge { padding: 1px 8px; border-radius: 3px; color: #fff; white-space: nowrap; }
+.red { background: #c00; } .orange { background: #e60; } .grey { background: #666; }
+footer { margin-top: 3em; font-size: .9em; color: #555; }

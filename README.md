@@ -79,7 +79,7 @@ xcrun notarytool store-credentials steamplg --apple-id <你的 Apple ID> --team-
 
 调试端口只监听本机，但开着时，本机任何程序都能控制 Steam 的网页界面。不用的时候，正常重启 Steam（不带参数）即可关闭。
 
-价格数据来自 [IsThereAnyDeal](https://isthereanydeal.com)。
+项目主页：https://steamplg.yiliang.app 。价格数据来自 [IsThereAnyDeal](https://isthereanydeal.com)。
 
 ## Code signing policy
 
