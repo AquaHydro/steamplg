@@ -16,7 +16,7 @@ export default {
     if (env.LIMITER && !(await env.LIMITER.limit({ key: req.headers.get('cf-connecting-ip') ?? '' })).success) return new Response(null, { status: 429 });
 
     // Cache API 在 workers.dev 域名上不生效，只在自定义域名上生效。判定逻辑改了就把 v2 往上加，让旧结果失效
-    const key = new Request(`https://cache.steamplg/v2/lowest?appid=${appid}&country=${country}`);
+    const key = new Request(`https://cache.steamplg/v3/lowest?appid=${appid}&country=${country}`);
     const hit = await caches.default.match(key);
     if (hit) return hit;
     try {

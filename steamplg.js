@@ -14,6 +14,15 @@ const CACHE_MS = 60 * 60 * 1000;
 const DEFAULT_SERVER = 'https://steamplg.yiliang.app';
 let cfg; // 全部可选：key / server / token / country / debugPort
 
+// 控制台文案和默认价格区跟系统语言走；商店页上的标签跟 Steam 页面语言走（见 badgeJs）
+const LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
+const ZH = /^zh/i.test(LOCALE);
+const T = (zh, en) => (ZH ? zh : en);
+// 只用于首次运行生成配置（写进文件并提示用户核对）。zh-CN -> CN，en-US -> US
+// ponytail: macOS / Linux 靠 LANG 判断，终端没设 LANG 时会当成 en-US；真有人踩到再读 AppleLocale
+const REGION = new Intl.Locale(LOCALE).maximize().region ?? 'US';
+const EN = { new: () => 'New lowest price', tie: () => 'Matches lowest price', above: (l) => `Not lowest · lowest ${l}`, nodisc: (l) => `Not on sale · lowest ${l}` };
+
 const cache = new Map(); // `${appid}:${country}` -> { at, result }
 async function lookup(appid, country) {
   const k = `${appid}:${country}`;
@@ -24,7 +33,8 @@ async function lookup(appid, country) {
     result = cfg.key && !cfg.server
       ? await fromItad(appid, country, cfg.key)
       : await getJson(`${cfg.server ?? DEFAULT_SERVER}/lowest?appid=${appid}&country=${country}`, cfg.token ? { authorization: `Bearer ${cfg.token}` } : {});
-    console.log(`app ${appid} ${country}: ${result?.text ?? '无数据'}`);
+    const label = result && (ZH ? result.text : EN[result.kind]?.(result.low) ?? result.text);
+    console.log(`app ${appid} ${country}: ${label ?? T('无数据', 'no data')}`);
   } catch (e) {
     console.error(`app ${appid} ${country}: ${e.message}`);
   }
@@ -33,12 +43,13 @@ async function lookup(appid, country) {
 }
 
 // 幂等：标题还没渲染或标签已存在就什么都不做，下一轮轮询再试
+// 中文 Steam 显示中文标签，其他语言显示英文；旧版 Worker 没有 kind，只能用中文
 const badgeJs = (r) => `(() => {
   const h = document.querySelector('.apphub_AppName');
   if (!h || document.getElementById('steamplg')) return;
   const b = document.createElement('span');
   b.id = 'steamplg';
-  b.textContent = ${JSON.stringify(r.text)};
+  b.textContent = /^zh/i.test(document.documentElement.lang) ? ${JSON.stringify(r.text)} : ${JSON.stringify(EN[r.kind]?.(r.low) ?? r.text)};
   b.style.cssText = 'margin-left:10px;padding:2px 8px;border-radius:3px;font-size:14px;color:#fff;background:${r.color}';
   h.append(b);
 })()`;
@@ -66,16 +77,16 @@ async function poll() {
   try {
     targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
   } catch {
-    if (connected !== false) console.log(`连不上 Steam 调试端口 ${port}。请完全退出 Steam，再这样启动：\n  ${LAUNCH[process.platform] ?? LAUNCH.linux}`);
+    if (connected !== false) console.log(T(`连不上 Steam 调试端口 ${port}。请完全退出 Steam，再这样启动：`, `Cannot reach the Steam debugging port ${port}. Fully exit Steam, then start it like this:`) + `\n  ${LAUNCH[process.platform] ?? LAUNCH.linux}`);
     connected = false;
     return;
   }
-  if (!connected) console.log('已连接 Steam 客户端，打开任意商店游戏页即可。');
+  if (!connected) console.log(T('已连接 Steam 客户端，打开任意商店游戏页即可。', 'Connected to the Steam client. Open any store game page.'));
   connected = true;
   for (const t of targets) {
     const appid = t.url.match(/^https:\/\/store\.steampowered\.com\/app\/(\d+)/)?.[1];
     if (!appid || !t.webSocketDebuggerUrl) continue;
-    const r = await lookup(appid, cfg.country ?? 'CN');
+    const r = await lookup(appid, cfg.country ?? 'CN'); // 旧版生成的配置没有 country，当时默认国区
     if (r) await evaluate(t.webSocketDebuggerUrl, badgeJs(r));
   }
 }
@@ -149,7 +160,8 @@ function install() {
     AUTOSTART.stop();
     background();
     sh('explorer', 'ms-settings:startupapps');
-    console.log(`已在后台启动，日志：${LOG_PATH}\n要登录后自动运行，请在刚打开的「设置 → 应用 → 启动」里打开 steamplg 的开关。`);
+    console.log(T(`已在后台启动，日志：${LOG_PATH}\n要登录后自动运行，请在刚打开的「设置 → 应用 → 启动」里打开 steamplg 的开关。`,
+      `Now running in the background. Log: ${LOG_PATH}\nTo start it at sign-in, turn on steamplg in Settings > Apps > Startup (just opened).`));
     return;
   }
   const a = AUTOSTART;
@@ -157,33 +169,36 @@ function install() {
   mkdirSync(dirname(a.file), { recursive: true });
   writeFileSync(a.file, a.content(), a.encoding ?? 'utf8');
   a.start(a.file);
-  console.log(`已设为登录后自动在后台运行，现在已经启动。\n  配置：${a.file}\n  日志：${a.log}\n取消：steamplg uninstall。注意之后别移动或删除本程序文件，否则自启会失效。`);
+  console.log(T(`已设为登录后自动在后台运行，现在已经启动。\n  配置：${a.file}\n  日志：${a.log}\n取消：steamplg uninstall。注意之后别移动或删除本程序文件，否则自启会失效。`,
+    `steamplg will now run in the background at sign-in, and has been started.\n  Config: ${a.file}\n  Log: ${a.log}\nTo undo: steamplg uninstall. Don't move or delete this program file, or autostart will break.`));
 }
 
 function uninstall() {
   if (MSIX) {
     AUTOSTART.stop();
     sh('explorer', 'ms-settings:startupapps');
-    console.log('后台进程已停止。要取消登录自启，请在刚打开的「设置 → 应用 → 启动」里关掉 steamplg 的开关。');
+    console.log(T('后台进程已停止。要取消登录自启，请在刚打开的「设置 → 应用 → 启动」里关掉 steamplg 的开关。',
+      'Background process stopped. To stop starting at sign-in, turn off steamplg in Settings > Apps > Startup (just opened).'));
     return;
   }
   const a = AUTOSTART;
   a.stop(a.file);
   rmSync(a.file, { force: true });
   if (process.platform === 'linux') sh('systemctl', '--user', 'daemon-reload');
-  console.log('已取消开机自启，后台进程已停止。');
+  console.log(T('已取消开机自启，后台进程已停止。', 'Autostart removed and the background process stopped.'));
 }
 
 async function setup(offerInstall) {
   const rl = createInterface({ input: process.stdin });
   const lines = rl[Symbol.asyncIterator](); // 逐行读，粘贴/管道多行输入也不会丢
   const ask = async (q) => { process.stdout.write(q); return ((await lines.next()).value ?? '').trim(); };
-  const conf = { country: 'CN' }; // 写出来让人知道能改；有了这个文件，下次启动就不再问
+  const conf = { country: REGION }; // 写出来让人知道能改；有了这个文件，下次启动就不再问
   writeFileSync(CONFIG_PATH, JSON.stringify(conf, null, 2));
-  console.log(`首次运行，配置已保存到 ${CONFIG_PATH}（价格区默认国区，要改直接编辑这个文件）。`);
-  if (offerInstall && process.stdin.isTTY && AUTOSTART && /^y/i.test(await ask('要设为登录后自动在后台运行吗？(y/N)：'))) {
+  console.log(T(`首次运行，配置已保存到 ${CONFIG_PATH}。价格区按系统设置为 ${REGION}，要和你的 Steam 商店区一致，不对就直接编辑这个文件。`,
+    `First run: settings saved to ${CONFIG_PATH}. Price region is ${REGION} (from your system); it must match your Steam store region, so edit the file if it doesn't.`));
+  if (offerInstall && process.stdin.isTTY && AUTOSTART && /^y/i.test(await ask(T('要设为登录后自动在后台运行吗？(y/N)：', 'Run automatically in the background at sign-in? (y/N): ')))) {
     install();
-    if (process.platform === 'win32') await ask('按回车关闭此窗口。'); // 双击运行时窗口会立刻关掉，先让人看到提示
+    if (process.platform === 'win32') await ask(T('按回车关闭此窗口。', 'Press Enter to close this window.')); // 双击运行时窗口会立刻关掉，先让人看到提示
     process.exit(0);
   }
   rl.close();
@@ -191,7 +206,7 @@ async function setup(offerInstall) {
 }
 
 const sub = process.argv[2];
-if ((sub === 'install' || sub === 'uninstall') && !AUTOSTART) { console.error(`不支持的系统：${process.platform}`); process.exit(1); }
+if ((sub === 'install' || sub === 'uninstall') && !AUTOSTART) { console.error(T('不支持的系统：', 'Unsupported OS: ') + process.platform); process.exit(1); }
 if (sub === 'uninstall') { uninstall(); process.exit(0); }
 if (sub === '--background') { background(); process.exit(0); } // MSIX 登录自启走这里
 try { cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')); } catch { cfg = await setup(sub !== 'install'); }

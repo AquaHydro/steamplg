@@ -2,6 +2,7 @@
 const STEAM = 61; // ITAD 里 Steam 的 shop id
 
 // history: Steam 的价格变动记录。最新一条 = 当前价，其余 = 以前的价
+// 返回 { kind, low, text, color }：kind / low 给客户端按页面语言拼文案，text 是中文文案（旧客户端只认它）
 export function classify(history) {
   const h = [...history].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   const cur = h[0]?.deal;
@@ -10,12 +11,12 @@ export function classify(history) {
   // 限免（¥0、cut 100）不算史低，否则领过一次的游戏永远显示「史低 0」（如国区 46500 在 2021-09）
   // ponytail: 原价永久下调到低于以往折扣价时会漏判，真遇到再处理
   const prev = h.slice(1).filter((e) => e.deal.cut > 0 && e.deal.price.amount > 0 && e.deal.price.currency === cur.price.currency);
-  if (!prev.length) return cur.cut > 0 ? { text: '新史低', color: '#c00' } : null;
-  const prevMin = Math.min(...prev.map((e) => e.deal.price.amount));
-  if (cur.cut === 0) return { text: `未打折 · 史低 ${prevMin}`, color: '#666' };
-  if (cur.price.amount < prevMin) return { text: '新史低', color: '#c00' };
-  if (cur.price.amount === prevMin) return { text: '平史低', color: '#e60' };
-  return { text: `非史低 · 史低 ${prevMin}`, color: '#666' };
+  if (!prev.length) return cur.cut > 0 ? { kind: 'new', text: '新史低', color: '#c00' } : null;
+  const low = Math.min(...prev.map((e) => e.deal.price.amount));
+  if (cur.cut === 0) return { kind: 'nodisc', low, text: `未打折 · 史低 ${low}`, color: '#666' };
+  if (cur.price.amount < low) return { kind: 'new', text: '新史低', color: '#c00' };
+  if (cur.price.amount === low) return { kind: 'tie', text: '平史低', color: '#e60' };
+  return { kind: 'above', low, text: `非史低 · 史低 ${low}`, color: '#666' };
 }
 
 export async function getJson(url, headers) {

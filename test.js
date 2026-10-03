@@ -7,6 +7,8 @@ assert.equal(classify([e('2024-01', 50, 50), e('2025-01', 100, 0), e('2026-01', 
 assert.equal(classify([e('2026-01', 50, 50), e('2024-01', 50, 50), e('2025-01', 100, 0)]).text, '平史低');
 assert.equal(classify([e('2024-01', 30, 70), e('2026-01', 60, 40)]).text, '非史低 · 史低 30');
 assert.equal(classify([e('2024-01', 30, 70), e('2026-01', 100, 0)]).text, '未打折 · 史低 30');
+// kind / low 给客户端拼英文标签
+assert.deepEqual(classify([e('2024-01', 30, 70), e('2026-01', 60, 40)]), { kind: 'above', low: 30, text: '非史低 · 史低 30', color: '#666' });
 assert.equal(classify([e('2026-01', 100, 0)]), null);
 assert.equal(classify([]), null);
 // 第一次打折就是新史低
